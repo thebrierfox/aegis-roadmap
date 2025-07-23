@@ -1,0 +1,26 @@
+{
+  "deck_meta": {
+    "title": "Template Title",
+    "deck_id": "deck_template_v0.1",
+    "version": "0.1",
+    "parent": null,
+    "changelog": []
+  },
+  "cards": [
+    {
+      "card_id": "TASK_PLACEHOLDER",
+      "type": "TASK",
+      "header": "Placeholder Task",
+      "trigger": "ALWAYS",
+      "key_question": "What should be accomplished?",
+      "core_actions": [
+        "Describe the task to perform"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Criteria for completion"
+      ],
+      "next": "END"
+    }
+  ]
+}
