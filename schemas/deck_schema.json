@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Roadmap Deck",
+  "type": "object",
+  "required": ["deck_meta", "cards"],
+  "properties": {
+    "deck_meta": {
+      "type": "object",
+      "required": ["title", "deck_id", "version"],
+      "properties": {
+        "title": { "type": "string" },
+        "deck_id": { "type": "string" },
+        "version": { "type": "string" },
+        "parent": { "type": ["string", "null"] },
+        "changelog": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "cards": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "card_schema.json" }
+    }
+  },
+  "additionalProperties": false
+}
