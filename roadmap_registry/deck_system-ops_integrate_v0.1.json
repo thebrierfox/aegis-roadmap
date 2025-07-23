@@ -1,0 +1,104 @@
+{
+  "deck_meta": {
+    "title": "Aegis Master Task\u2011Expertise Roadmap Directive \u2014 System\u2011Ops / Integrate",
+    "deck_id": "deck_system-ops_integrate_v0.1",
+    "version": "0.1",
+    "parent": null,
+    "changelog": []
+  },
+  "cards": [
+    {
+      "card_id": "TASK_SYS_INIT",
+      "type": "TASK",
+      "header": "Directive Capture",
+      "trigger": "ALWAYS",
+      "key_question": "Have we fully captured the directive text and scope?",
+      "core_actions": [
+        "Ingest directive text into working memory",
+        "Generate deterministic task_id"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Directive text stored in session context",
+        "task_id assigned"
+      ],
+      "next": "DEC_SYS_VALIDATE"
+    },
+    {
+      "card_id": "DEC_SYS_VALIDATE",
+      "type": "DECISION",
+      "header": "Conflict & Capability Check",
+      "trigger": "ALWAYS",
+      "key_question": "Does the directive conflict with higher\u2011level policies or technical constraints?",
+      "core_actions": [
+        "Run compliance scan against system policy",
+        "Flag any conflicts (e.g., chain\u2011of\u2011thought disclosure)"
+      ],
+      "resource_links": [
+        "res://openai_policy_summary"
+      ],
+      "success_criteria": [
+        "Conflicts identified or clearance confirmed",
+        "Mitigation notes recorded if needed"
+      ],
+      "next": "RES_SYS_GUIDE"
+    },
+    {
+      "card_id": "RES_SYS_GUIDE",
+      "type": "RESOURCE",
+      "header": "Reference Materials",
+      "trigger": "ALWAYS",
+      "key_question": "What resources are required to implement the directive?",
+      "core_actions": [
+        "Link to existing card schema spec",
+        "Link to storage conventions guide",
+        "Link to compliance mitigation notes"
+      ],
+      "resource_links": [
+        "res://card_schema_spec",
+        "res://storage_conventions_doc",
+        "res://cot_mitigation_note"
+      ],
+      "success_criteria": [
+        "All reference links resolvable"
+      ],
+      "next": "ACT_SYS_INTEGRATE"
+    },
+    {
+      "card_id": "ACT_SYS_INTEGRATE",
+      "type": "ACTION",
+      "header": "Embed & Activate",
+      "trigger": "ALWAYS",
+      "key_question": "Have we embedded the directive into the live roadmap workflow engine?",
+      "core_actions": [
+        "Register deck in /roadmap_registry/deck_system-ops_integrate.json",
+        "Add directive tag to active session metadata",
+        "Enable Core Loop hook for future requests"
+      ],
+      "resource_links": [
+        "res://roadmap_registry_path"
+      ],
+      "success_criteria": [
+        "Deck file created & checksum verified",
+        "Core Loop now references directive on START"
+      ],
+      "next": "FDBK_SYS_REPORT"
+    },
+    {
+      "card_id": "FDBK_SYS_REPORT",
+      "type": "FEEDBACK",
+      "header": "Integration Report",
+      "trigger": "ALWAYS",
+      "key_question": "How successful was the integration and what can be improved?",
+      "core_actions": [
+        "Log latency_ms, quality_score, confidence_float",
+        "Write improvement_note"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Feedback persisted to roadmap_usage.db"
+      ],
+      "next": "END"
+    }
+  ]
+}
