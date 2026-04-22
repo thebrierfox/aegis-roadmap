@@ -1,0 +1,107 @@
+{
+  "deck_meta": {
+    "title": "Build Content Distribution Pipeline for dev.to Articles",
+    "deck_id": "deck_content_distribution_devto_v0.1",
+    "version": "0.1",
+    "parent": null,
+    "changelog": []
+  },
+  "cards": [
+    {
+      "card_id": "TASK_DEVTO_PIPELINE_INIT",
+      "type": "TASK",
+      "header": "Capture Content Distribution Requirements",
+      "trigger": "ALWAYS",
+      "key_question": "What are the exact requirements for distributing dev.to articles?",
+      "core_actions": [
+        "Define article sources and distribution channels",
+        "Identify content formats and metadata requirements",
+        "List target platforms and publication rules"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Clear requirements document created",
+        "Stakeholder consensus on scope"
+      ],
+      "next": "DECISION_DEVTO_SCOPE"
+    },
+    {
+      "card_id": "DECISION_DEVTO_SCOPE",
+      "type": "DECISION",
+      "header": "Evaluate Scope and Technical Feasibility",
+      "trigger": "After requirements captured",
+      "key_question": "Is this pipeline technically and resource feasible?",
+      "core_actions": [
+        "Assess API availability for each platform",
+        "Evaluate existing tools vs. custom build",
+        "Determine resource requirements and timeline"
+      ],
+      "resource_links": [
+        "https://dev.to/api"
+      ],
+      "success_criteria": [
+        "Go/No-go decision made",
+        "Technical approach selected"
+      ],
+      "next": "RESOURCE_DEVTO_GATHER"
+    },
+    {
+      "card_id": "RESOURCE_DEVTO_GATHER",
+      "type": "RESOURCE",
+      "header": "Gather Tools and Integrations",
+      "trigger": "After go-decision",
+      "key_question": "What tools and APIs are needed for implementation?",
+      "core_actions": [
+        "Document platform APIs (dev.to, Medium, LinkedIn, etc.)",
+        "Select or build integration libraries",
+        "Set up authentication and credentials"
+      ],
+      "resource_links": [
+        "https://dev.to/api/docs",
+        "https://docs.github.com/en/rest"
+      ],
+      "success_criteria": [
+        "All APIs documented and accessible",
+        "Integration libraries selected or built"
+      ],
+      "next": "ACTION_DEVTO_BUILD"
+    },
+    {
+      "card_id": "ACTION_DEVTO_BUILD",
+      "type": "ACTION",
+      "header": "Build and Deploy Distribution Pipeline",
+      "trigger": "Resources ready",
+      "key_question": "How do we implement and test the pipeline?",
+      "core_actions": [
+        "Implement ETL logic for content ingestion",
+        "Build platform-specific adapters",
+        "Create scheduling and monitoring systems",
+        "Deploy to staging and production"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Pipeline operational on all platforms",
+        "Automated distribution verified"
+      ],
+      "next": "FEEDBACK_DEVTO_MEASURE"
+    },
+    {
+      "card_id": "FEEDBACK_DEVTO_MEASURE",
+      "type": "FEEDBACK",
+      "header": "Monitor Performance and Iterate",
+      "trigger": "Pipeline deployed",
+      "key_question": "Is the pipeline meeting performance and reliability goals?",
+      "core_actions": [
+        "Track distribution metrics (reach, engagement, errors)",
+        "Collect user feedback on content quality",
+        "Identify and fix bottlenecks"
+      ],
+      "resource_links": [],
+      "success_criteria": [
+        "Metrics dashboard active",
+        "Iteration cycle established"
+      ],
+      "next": "END"
+    }
+  ]
+}

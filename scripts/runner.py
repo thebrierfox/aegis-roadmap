@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/runner.py — Aegis Task-Expertise Roadmap Generation CLI
+scripts/runner.py -- Aegis Task-Expertise Roadmap Generation CLI
 
 Usage:
     python3 scripts/runner.py "describe my task here"
@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Paths — resolved relative to repo root regardless of cwd
+# Paths -- resolved relative to repo root regardless of cwd
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DIRECTIVE_FILE = REPO_ROOT / "AegisAgentCards.txt"
@@ -33,10 +33,7 @@ MODEL = "claude-haiku-4-5-20251001"
 # Credential loader
 # ---------------------------------------------------------------------------
 def load_api_key() -> str:
-    """
-    Read ANTHROPIC_API_KEY from ~/intuitek/.env via bash source.
-    Returns empty string if not found.
-    """
+    """Read ANTHROPIC_API_KEY from ~/intuitek/.env. Returns empty string if absent."""
     result = subprocess.run(
         ["bash", "-c", "source ~/intuitek/.env && echo $ANTHROPIC_API_KEY"],
         capture_output=True,
@@ -55,13 +52,13 @@ def ensure_runs_table(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS runs (
-            id            INTEGER PRIMARY KEY,
-            timestamp     TEXT NOT NULL,
+            id               INTEGER PRIMARY KEY,
+            timestamp        TEXT NOT NULL,
             task_description TEXT NOT NULL,
-            deck_file     TEXT NOT NULL,
-            cards_count   INTEGER NOT NULL,
-            latency_ms    INTEGER NOT NULL,
-            model         TEXT NOT NULL
+            deck_file        TEXT NOT NULL,
+            cards_count      INTEGER NOT NULL,
+            latency_ms       INTEGER NOT NULL,
+            model            TEXT NOT NULL
         )
         """
     )
@@ -107,82 +104,115 @@ def deck_filename(task_description: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Prompt template
+# Prompt -- sent directly to the model (not via system prompt in CLI mode)
 # ---------------------------------------------------------------------------
-DECK_PROMPT_TEMPLATE = """\
-Task description: {task}
+GENERATION_PROMPT = """\
+You are an AI agent implementing the Aegis Task-Expertise Roadmap system.
 
-Generate a Task-Expertise Roadmap Deck for this task following the directive above.
-Return ONLY a valid JSON object — no markdown fences, no prose outside the JSON.
+Your job: generate a Task-Expertise Roadmap Deck as a JSON object.
 
-The JSON object must have exactly this structure:
-{{
-  "deck_meta": {{
-    "title": "<descriptive title>",
-    "deck_id": "deck_<discipline>_<intent>_v0.1",
-    "version": "0.1",
-    "parent": null,
-    "changelog": []
-  }},
-  "cards": [ ... ]
-}}
+RULES:
+1. Return ONLY a valid JSON object. No prose before or after it.
+2. No markdown code fences. No explanations. Just the raw JSON.
+3. The JSON must have exactly two top-level keys: "deck_meta" and "cards".
 
-Each card must have ALL of these fields:
-  card_id        STRING (unique, deterministic)
-  type           one of: TASK | DECISION | RESOURCE | ACTION | FEEDBACK
-  header         STRING (friendly title)
-  trigger        STRING (boolean expression or ALWAYS)
-  key_question   STRING
-  core_actions   ARRAY of strings
-  resource_links ARRAY of strings (may be empty)
-  success_criteria ARRAY of strings
-  next           card_id or END
+deck_meta structure:
+  "title": descriptive title string
+  "deck_id": "deck_<discipline>_<intent>_v0.1" (lowercase kebab)
+  "version": "0.1"
+  "parent": null
+  "changelog": []
 
-Include at least 5 cards covering the universal funnel:
-  TASK card -> DECISION card(s) -> RESOURCE card -> ACTION card(s) -> FEEDBACK card
+cards: array of card objects. Each card MUST have ALL these fields:
+  "card_id"        STRING (unique, like TASK_CD_INIT)
+  "type"           one of: TASK, DECISION, RESOURCE, ACTION, FEEDBACK
+  "header"         STRING (friendly title, 3-8 words)
+  "trigger"        STRING (e.g. "ALWAYS" or a condition)
+  "key_question"   STRING (one focused question)
+  "core_actions"   ARRAY of strings (2-5 items)
+  "resource_links" ARRAY of strings (may be empty [])
+  "success_criteria" ARRAY of strings (1-3 items)
+  "next"           STRING (card_id of the next card, or "END")
+
+Include exactly 5 cards in this order:
+  1. TASK card (type="TASK") -- capture and classify the task
+  2. DECISION card (type="DECISION") -- scope/feasibility check
+  3. RESOURCE card (type="RESOURCE") -- gather required resources
+  4. ACTION card (type="ACTION") -- execute the core work
+  5. FEEDBACK card (type="FEEDBACK") -- measure and log results
+
+Card chain: card 1 next -> card 2 id, card 2 next -> card 3 id, ..., card 5 next -> "END"
+
+Task to generate the roadmap for:
+{task}
+
+Return the JSON object now. Nothing else.
 """
 
 
 # ---------------------------------------------------------------------------
-# JSON extraction helper
+# JSON extraction -- handles multiple formats the model might return
 # ---------------------------------------------------------------------------
-def _extract_json(raw: str) -> str:
-    """Strip markdown fences and extract the first JSON object from raw text."""
+def extract_json_from_response(raw: str) -> dict:
+    """
+    Extract and parse a JSON object from model output.
+    Tries in order:
+      1. Fenced JSON block (```json ... ```)
+      2. Any fenced block (``` ... ```)
+      3. Direct JSON parse of the whole string
+      4. Find first { and last } and parse between them
+    """
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = re.sub(r"^```[a-z]*\n?", "", raw)
-        raw = re.sub(r"\n?```\s*$", "", raw.rstrip())
-        raw = raw.strip()
-    # If there's leading prose before the JSON, find the first {
-    brace = raw.find("{")
-    if brace > 0:
-        raw = raw[brace:]
-    return raw
+
+    # 1. Fenced JSON block
+    m = re.search(r"```(?:json)?\s*\n([\s\S]*?)\n```", raw)
+    if m:
+        try:
+            return json.loads(m.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Direct parse
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # 3. Brace extraction -- find outermost complete JSON object
+    start = raw.find("{")
+    if start >= 0:
+        # Walk to find balanced closing brace
+        depth = 0
+        for i, ch in enumerate(raw[start:], start):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = raw[start : i + 1]
+                    try:
+                        return json.loads(candidate)
+                    except json.JSONDecodeError:
+                        break
+
+    raise ValueError(f"No valid JSON object found in response (len={len(raw)})")
 
 
 # ---------------------------------------------------------------------------
-# Generation — claude CLI path (Max OAuth, no API credit cost)
+# Generation via claude CLI (Max OAuth -- zero API credit cost)
 # ---------------------------------------------------------------------------
-def generate_via_claude_cli(task_description: str, system_prompt: str) -> tuple:
-    """
-    Use `claude -p` (Max OAuth) to generate the deck.
-    Returns (raw_text, latency_ms).
-    """
-    combined_prompt = (
-        system_prompt.strip()
-        + "\n\n---\n\n"
-        + DECK_PROMPT_TEMPLATE.format(task=task_description)
-    )
+def generate_via_claude_cli(task_description: str) -> tuple:
+    """Returns (deck_dict, latency_ms)."""
+    prompt = GENERATION_PROMPT.format(task=task_description)
 
-    env = {**os.environ}
-    env.pop("ANTHROPIC_API_KEY", None)   # force Max OAuth, not API key billing
+    env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
 
     t0 = time.monotonic()
     result = subprocess.run(
         [
             "claude",
             "-p",
-            combined_prompt,
+            prompt,
             "--output-format",
             "text",
             "--model",
@@ -199,44 +229,42 @@ def generate_via_claude_cli(task_description: str, system_prompt: str) -> tuple:
         err = (result.stderr or result.stdout or "").strip()
         raise RuntimeError(f"claude -p exited {result.returncode}: {err[:500]}")
 
-    return result.stdout.strip(), latency_ms
+    deck = extract_json_from_response(result.stdout)
+    return deck, latency_ms
 
 
 # ---------------------------------------------------------------------------
-# Generation — Anthropic SDK fallback (requires funded API key)
+# Generation via Anthropic SDK (requires funded API key -- fallback only)
 # ---------------------------------------------------------------------------
-def generate_via_sdk(task_description: str, system_prompt: str) -> tuple:
-    """
-    Use the Anthropic Python SDK with API key from .env.
-    Fallback only — the API key may have depleted credits.
-    """
+def generate_via_sdk(task_description: str) -> tuple:
+    """Returns (deck_dict, latency_ms)."""
     import anthropic
 
     api_key = load_api_key()
     if not api_key:
-        raise RuntimeError("No ANTHROPIC_API_KEY available for SDK fallback.")
+        raise RuntimeError("No ANTHROPIC_API_KEY for SDK fallback.")
 
     client = anthropic.Anthropic(api_key=api_key)
-    user_prompt = DECK_PROMPT_TEMPLATE.format(task=task_description)
+    prompt = GENERATION_PROMPT.format(task=task_description)
 
     t0 = time.monotonic()
     message = client.messages.create(
         model=MODEL,
         max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[{"role": "user", "content": prompt}],
     )
     latency_ms = int((time.monotonic() - t0) * 1000)
-    return message.content[0].text.strip(), latency_ms
+    deck = extract_json_from_response(message.content[0].text)
+    return deck, latency_ms
 
 
 # ---------------------------------------------------------------------------
-# Unified deck generator
+# Unified generator with fallback
 # ---------------------------------------------------------------------------
-def generate_deck(task_description: str, system_prompt: str) -> tuple:
+def generate_deck(task_description: str) -> tuple:
     """
-    Attempt generation via claude CLI first (Max OAuth, zero credit cost).
-    Falls back to SDK if CLI fails.
+    Primary: claude CLI (Max OAuth).
+    Fallback: Anthropic SDK.
     Returns (deck_dict, latency_ms).
     """
     cli_available = subprocess.run(["which", "claude"], capture_output=True).returncode == 0
@@ -244,18 +272,14 @@ def generate_deck(task_description: str, system_prompt: str) -> tuple:
 
     if cli_available:
         try:
-            raw, latency_ms = generate_via_claude_cli(task_description, system_prompt)
-            deck = json.loads(_extract_json(raw))
-            return deck, latency_ms
+            return generate_via_claude_cli(task_description)
         except Exception as exc:
             errors.append(f"claude CLI: {exc}")
             print(f"  CLI path failed: {exc}", file=sys.stderr)
             print("  Trying SDK fallback...", file=sys.stderr)
 
     try:
-        raw, latency_ms = generate_via_sdk(task_description, system_prompt)
-        deck = json.loads(_extract_json(raw))
-        return deck, latency_ms
+        return generate_via_sdk(task_description)
     except Exception as exc:
         errors.append(f"SDK: {exc}")
 
@@ -273,7 +297,7 @@ def print_deck(deck: dict) -> None:
     print()
     print("=" * 70)
     print(f"  DECK: {meta.get('title', '(no title)')}")
-    print(f"  ID:   {meta.get('deck_id', '?')}  |  version {meta.get('version', '?')}")
+    print(f"  ID  : {meta.get('deck_id', '?')}  |  version {meta.get('version', '?')}")
     print("=" * 70)
 
     cards = deck.get("cards", [])
@@ -291,7 +315,7 @@ def print_deck(deck: dict) -> None:
 
         criteria = card.get("success_criteria", [])
         if criteria:
-            print("  Success criteria:")
+            print("  Success:")
             for c in criteria:
                 print(f"    + {c}")
 
@@ -315,7 +339,7 @@ def list_decks() -> None:
     if not decks:
         print("No decks found in roadmap_registry/")
         return
-    print(f"\nDecks in roadmap_registry/:\n")
+    print("\nDecks in roadmap_registry/:\n")
     for d in decks:
         try:
             with open(d) as f:
@@ -338,7 +362,7 @@ def main() -> None:
         epilog=(
             "Examples:\n"
             '  python3 scripts/runner.py "Build a content distribution pipeline for dev.to"\n'
-            '  python3 scripts/runner.py "Automate ClawMart listing updates" '
+            '  python3 scripts/runner.py "Automate listing updates" '
             "--deck roadmap_registry/deck_existing.json\n"
             "  python3 scripts/runner.py --list"
         ),
@@ -347,7 +371,7 @@ def main() -> None:
     parser.add_argument(
         "--deck",
         metavar="DECK_FILE",
-        help="Path to an existing deck file to display instead of generating",
+        help="Path to an existing deck file to display (skips generation)",
     )
     parser.add_argument("--list", action="store_true", help="List all decks in roadmap_registry/")
     args = parser.parse_args()
@@ -377,21 +401,14 @@ def main() -> None:
     # Generation mode
     print(f"\nTask: {args.task}")
     print(f"Model: {MODEL}")
-    print("Reading directive from AegisAgentCards.txt ...")
+    print("Calling Claude (claude -p / Max OAuth) ...", end=" ", flush=True)
 
-    if not DIRECTIVE_FILE.exists():
-        print(f"ERROR: Directive file not found: {DIRECTIVE_FILE}", file=sys.stderr)
-        sys.exit(1)
-
-    system_prompt = DIRECTIVE_FILE.read_text(encoding="utf-8")
-
-    print("Calling Claude (claude -p / Max OAuth) ... ", end="", flush=True)
-    deck, latency_ms = generate_deck(args.task, system_prompt)
+    deck, latency_ms = generate_deck(args.task)
     print(f"done ({latency_ms} ms)\n")
 
     # Validate minimal structure
     if "deck_meta" not in deck or "cards" not in deck:
-        print("ERROR: Generated deck is missing required top-level keys.", file=sys.stderr)
+        print("ERROR: Generated deck missing required keys (deck_meta, cards).", file=sys.stderr)
         print(json.dumps(deck, indent=2)[:800], file=sys.stderr)
         sys.exit(1)
 
