@@ -1,0 +1,81 @@
+{
+  "deck_meta": {
+    "title": "Revenue Push — ClawMart Traffic",
+    "deck_id": "deck_revenue_push_v0.1",
+    "version": "0.1",
+    "parent": null,
+    "changelog": [
+      "2026-04-22: initial deck — daily content and distribution actions"
+    ]
+  },
+  "cards": [
+    {
+      "card_id": "AUDIT_STATE",
+      "type": "TASK",
+      "header": "Audit current revenue state",
+      "trigger": "ALWAYS",
+      "key_question": "What is the current traffic and revenue state across all channels?",
+      "core_actions": [
+        "Check dev.to article count and view stats via DEVTO_API_KEY from ~/intuitek/.env",
+        "Check ClawMart listing count and status via CLAWMART_API_KEY from ~/intuitek/.env",
+        "Review ~/intuitek/logs/heartbeat.log for last 5 entries",
+        "Report: articles live, best view count, ClawMart listing count, last heartbeat"
+      ],
+      "resource_links": [
+        "https://dev.to/api/articles?username=thebrierfox",
+        "https://www.shopclawmart.com/api/v1/listings"
+      ],
+      "success_criteria": [
+        "Article count reported",
+        "ClawMart listing count reported",
+        "Best performing article identified"
+      ],
+      "next": "PUBLISH_CONTENT"
+    },
+    {
+      "card_id": "PUBLISH_CONTENT",
+      "type": "ACTION",
+      "header": "Publish one new dev.to article from backlog",
+      "trigger": "IF prior article published more than 20 hours ago",
+      "key_question": "What is the highest-leverage content to publish next for ClawMart traffic?",
+      "core_actions": [
+        "Read ~/intuitek/outputs/ for any unpublished article drafts (article_*.md)",
+        "If a draft exists, publish it to dev.to via API with tags: claudecode, devtools, aiagents",
+        "If no draft exists, write and publish a new article about a Claude Code production pattern",
+        "Include ClawMart CTA in footer: shopclawmart.com/@thebrierfox",
+        "Write the article URL to ~/intuitek/outputs/published_articles.log"
+      ],
+      "resource_links": [
+        "https://dev.to/api/articles"
+      ],
+      "success_criteria": [
+        "Article published with 201 response",
+        "Article URL written to outputs/published_articles.log",
+        "ClawMart CTA present in article body"
+      ],
+      "next": "REDDIT_POST"
+    },
+    {
+      "card_id": "REDDIT_POST",
+      "type": "ACTION",
+      "header": "Post to Reddit if not already posted today",
+      "trigger": "IF no Reddit post in past 24 hours",
+      "key_question": "Which subreddit and article will get the most targeted traffic?",
+      "core_actions": [
+        "Check ~/intuitek/coordination/in_progress/ for reddit-post lock file",
+        "If no lock, check Devvit token at ~/.devvit/token — refresh if expired",
+        "Post the most recently published dev.to article inline to r/ClaudeCode or r/ClaudeAI",
+        "Post dev.to URL as first comment",
+        "Write lock file to ~/intuitek/coordination/in_progress/reddit-post-$(date +%s).lock"
+      ],
+      "resource_links": [
+        "https://oauth.reddit.com/api/submit"
+      ],
+      "success_criteria": [
+        "Reddit post created (201 response) or skip noted if lock exists",
+        "Lock file created on post"
+      ],
+      "next": "END"
+    }
+  ]
+}

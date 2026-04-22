@@ -1,0 +1,43 @@
+name: deck-smoke
+on: [push, pull_request]
+jobs:
+  deck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: validate all deck JSON files against schema
+        run: |
+          python3 -c "
+          import json, pathlib, sys
+
+          card_schema = json.loads(pathlib.Path('schemas/card_schema.json').read_text())
+          required_card_keys = set(card_schema.get('required', []))
+
+          errors = []
+          for p in sorted(pathlib.Path('roadmap_registry').glob('*.json')):
+              if 'template' in p.name:
+                  continue
+              try:
+                  deck = json.loads(p.read_text())
+                  assert 'deck_meta' in deck, 'missing deck_meta'
+                  assert 'cards' in deck, 'missing cards'
+                  for card in deck['cards']:
+                      missing = required_card_keys - set(card.keys())
+                      if missing:
+                          errors.append(f'{p.name} card {card.get(\"card_id\",\"?\")} missing: {missing}')
+                  print(f'  OK: {p.name} ({len(deck[\"cards\"])} cards)')
+              except Exception as e:
+                  errors.append(f'  FAIL: {p.name}: {e}')
+                  print(f'  FAIL: {p.name}: {e}')
+          if errors:
+              for e in errors:
+                  print(e)
+              sys.exit(1)
+          "
+      - name: list available decks (deck_runner)
+        run: python3 scripts/deck_runner.py --list
+      - name: list available decks (runner --list)
+        run: python3 scripts/runner.py --list
